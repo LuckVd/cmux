@@ -371,6 +371,28 @@ struct AgentRestoreLiveOwnerAdmissionTests {
         ))
     }
 
+    @Test("Claude's current hook session supersedes its launch selector", arguments: ["--session-id", "--resume", "-r"])
+    func claudeInProcessSwitchKeepsCurrentSessionLive(selector: String) throws {
+        let fixture = try makeFixture(
+            kind: .claude,
+            ownerState: .live,
+            launchSessionArguments: [selector, "11111111-2222-3333-4444-555555555555"]
+        )
+        defer { fixture.cleanup() }
+        let owner = try #require(fixture.index.liveSessionOwner(
+            kind: "claude",
+            sessionID: fixture.sessionID,
+            revalidateProcessEvidence: false
+        ))
+        #expect(owner.processID == fixture.processID)
+        #expect(owner.sessionID == fixture.sessionID)
+        #expect(fixture.index.liveSessionOwner(
+            kind: "claude",
+            sessionID: "11111111-2222-3333-4444-555555555555",
+            revalidateProcessEvidence: false
+        ) == nil)
+    }
+
     @Test("A reused Claude PID with another session id is not an owner")
     func claudeSessionArgumentMustMatch() {
         let expectedSessionID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -528,6 +550,7 @@ struct AgentRestoreLiveOwnerAdmissionTests {
         kind: RestorableAgentKind = .grok,
         ownerState: OwnerState,
         launchOptions: [String] = [],
+        launchSessionArguments: [String]? = nil,
         corruptStoreKinds: Set<RestorableAgentKind> = []
     ) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory
@@ -568,7 +591,7 @@ struct AgentRestoreLiveOwnerAdmissionTests {
             sessionArguments = ["--session-id", sessionID]
         }
         let executable = "/usr/local/bin/\(kind.rawValue)"
-        let launchArguments = [executable] + launchOptions + sessionArguments
+        let launchArguments = [executable] + launchOptions + (launchSessionArguments ?? sessionArguments)
         let ownerProcess: Process?
         let processID: Int
         if ownerState == .live || ownerState == .staleGeneration {
