@@ -26,6 +26,7 @@ import CmuxWorkspaces
 import CmuxNotifications
 import CmuxSimulator
 private let mobileReconnectDebugLog = Logger(subsystem: "dev.cmux", category: "mobile-reconnect-debug")
+
 extension Notification.Name {
     static let socketListenerDidStart = Notification.Name("cmux.socketListenerDidStart")
     // terminalSurfaceDidBecomeReady moved to CmuxTerminal (posted by TerminalSurface).
@@ -4045,6 +4046,17 @@ class TerminalController {
         }
     }
 
+    /// Reject selector-shaped parameters that terminal commands do not understand.
+    /// Silently falling back to the focused surface makes a typo look successful.
+    nonisolated static func terminalTargetParameterValidationError(params: [String: Any]) -> V2CallResult? {
+        guard params.keys.contains("surface") else { return nil }
+        return .err(
+            code: "invalid_params",
+            message: String(localized: "socket.terminal.unsupportedSurfaceParam", defaultValue: "Unsupported parameter `surface`; use `surface_id`."),
+            data: nil
+        )
+    }
+
     nonisolated func v2UnsupportedWorkspaceAliasError(method: String, params: [String: Any]) -> V2CallResult? {
         guard method.hasPrefix("workspace."), params.keys.contains("window") else { return nil }
         return .err(
@@ -5566,6 +5578,9 @@ class TerminalController {
     /// including the global-dock branch the witness grew after the original
     /// prototype — are byte-faithful to the coordinator witness this replaces.
     private nonisolated func v2SurfaceReadText(params: [String: Any]) -> V2CallResult {
+        if let error = Self.terminalTargetParameterValidationError(params: params) {
+            return error
+        }
         var includeScrollback = v2Bool(params, "scrollback") ?? false
         let lineLimit = v2Int(params, "lines")
         if lineLimit != nil {
@@ -15641,6 +15656,9 @@ class TerminalController {
     func v2MobileTerminalPaste(params: [String: Any]) -> V2CallResult {
         guard let text = v2RawString(params, "text"), !text.isEmpty else {
             return .err(code: "invalid_params", message: "Missing text", data: nil)
+        }
+        if let error = Self.terminalTargetParameterValidationError(params: params) {
+            return error
         }
         // Resolve the optional submit key up front so an unsupported value fails
         // before any text is pasted (no partial application). The phone sends

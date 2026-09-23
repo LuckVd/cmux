@@ -25,4 +25,25 @@ struct TerminalTargetValidationTests {
         #expect(error["code"] as? String == "invalid_params")
     }
 
+    @Test(arguments: ["not-a-surface", "", "surface:2"])
+    func unrecognizedSurfaceParameterIsRejected(value: String) {
+        let result = TerminalController.terminalTargetParameterValidationError(params: ["surface": value])
+        guard case let .err(code, _, _) = result else {
+            Issue.record("An unrecognized surface selector must be rejected")
+            return
+        }
+        #expect(code == "invalid_params")
+    }
+
+    @Test func nullSurfaceIsRejected() {
+        #expect(TerminalController.terminalTargetParameterValidationError(params: ["surface": NSNull()]) != nil)
+    }
+
+    @Test func omittedTargetKeepsFocusedDefault() {
+        #expect(TerminalController.terminalTargetParameterValidationError(params: [:]) == nil)
+    }
+
+    @Test func recognizedSurfaceIDParameterIsAccepted() {
+        #expect(TerminalController.terminalTargetParameterValidationError(params: ["surface_id": "abc"]) == nil)
+    }
 }
